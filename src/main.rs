@@ -3,6 +3,7 @@ extern crate clap;
 extern crate toml;
 extern crate xdg;
 extern crate textwidth;
+extern crate regex;
 
 
 mod config;
@@ -61,6 +62,8 @@ fn main() {
 
     let stdin = child.stdin.as_mut().expect("failed to get stdin");
 
+    let re = regex::Regex::new(r"\^\w+\([#\w+]*\)").unwrap();
+
     let mut threads = vec![];
     let (tx, rx) = mpsc::channel();
     let mut data = vec![(String::new(), 0); config.elements.len()];
@@ -83,7 +86,7 @@ fn main() {
         };
         let handle = thread::Builder::new().name(name).spawn(move || {
             match elem {
-                Element::Command { command } => {
+                Element::Command { command, .. } => {
                     let shell = env::var("SHELL").unwrap_or("/bin/sh".to_string());
                     let child = Command::new(shell)
                         .args(&["-c", &command])
@@ -104,7 +107,7 @@ fn main() {
                         tx.send((idx, line)).expect("Could not send to main thread");
                     }
                 }
-                Element::Repeat { command, time } => {
+                Element::Repeat { command, time, .. } => {
                     let shell = env::var("SHELL").unwrap_or("/bin/sh".to_string());
                     loop {
                         let start = Instant::now();
@@ -183,7 +186,12 @@ fn main() {
     };
 
     for (idx, val) in rx.iter() {
-        let width = textwidth::get_text_width(&context, &val) as u32;
+        let width = if let Some(width) = config.elements[idx].get_width() {
+            width
+        } else {
+            let only_text = re.replace_all(&val, "");
+            textwidth::get_text_width(&context, &only_text) as u32
+        };
         data[idx] = (val, width);
         update_data(&mut data);
     }

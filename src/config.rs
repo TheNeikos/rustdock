@@ -21,10 +21,12 @@ pub struct Dimension {
 pub enum Element {
     Command {
         command: String,
+        width: Option<u32>,
     },
     Repeat {
         command: String,
         time: u32,
+        width: Option<u32>,
     },
     Fixed {
         size: u32,
@@ -33,6 +35,20 @@ pub enum Element {
         sep: String,
     },
     Right
+}
+
+impl Element {
+    pub fn get_width(&self) -> Option<u32> {
+        match self {
+            Element::Command { width, .. } |
+                Element::Repeat { width, .. } => {
+                    return *width;
+                }
+            _ => {
+                return None;
+            }
+        }
+    }
 }
 
 #[derive(Deserialize)]
