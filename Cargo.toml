@@ -1,0 +1,12 @@
+[package]
+authors = ["Marcel Müller <neikos@neikos.email>"]
+name = "rustdock"
+version = "0.1.0"
+
+[dependencies]
+clap = "2.31.2"
+serde = "1.0.66"
+serde_derive = "1.0.66"
+textwidth = "1.0.0"
+toml = "0.4.6"
+xdg = "2.1.0"
