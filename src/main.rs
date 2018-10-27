@@ -88,38 +88,47 @@ fn main() {
             match elem {
                 Element::Command { command, .. } => {
                     let shell = env::var("SHELL").unwrap_or("/bin/sh".to_string());
-                    let child = Command::new(shell)
-                        .args(&["-c", &command])
-                        .stdout(Stdio::piped())
-                        .stderr(Stdio::piped())
-                        .spawn().expect("Could not spawn command");
+                    loop {
+                        let mut child = Command::new(shell.clone())
+                            .args(&["-c", &command])
+                            .stdout(Stdio::piped())
+                            .stderr(Stdio::piped())
+                            .spawn().expect("Could not spawn command");
 
-                    let reader = BufReader::new({
-                        if let Some(out) = child.stdout {
-                            out
-                        } else {
-                            return;
+                        {
+                            let reader = BufReader::new({
+                                if let Some(out) = child.stdout.take() {
+                                    out
+                                } else {
+                                    return;
+                                }
+                            });
+
+                            for line in reader.lines() {
+                                let line = line.expect("Read from process failed");
+                                tx.send((idx, line)).expect("Could not send to main thread");
+                            }
                         }
-                    });
-
-                    for line in reader.lines() {
-                        let line = line.expect("Read from process failed");
-                        tx.send((idx, line)).expect("Could not send to main thread");
+                        child.wait().expect("failed to wait on child");
+                        thread::sleep(Duration::from_millis(1000));
                     }
                 }
                 Element::Repeat { command, time, .. } => {
                     let shell = env::var("SHELL").unwrap_or("/bin/sh".to_string());
                     loop {
                         let start = Instant::now();
-                        let child = Command::new(shell.clone())
+                        let mut child = Command::new(shell.clone())
                             .args(&["-c", &command])
                             .stdout(Stdio::piped())
                             .stderr(Stdio::piped())
                             .spawn().expect("Could not spawn command");
 
                         let mut line = String::new();
-                        child.stdout.expect("Could not get stdout from child")
-                            .read_to_string(&mut line).expect("Could not read from process");
+                        {
+                            child.stdout.take().expect("Could not get stdout from child")
+                                .read_to_string(&mut line).expect("Could not read from process");
+                        }
+                        child.wait().expect("failed to wait on child");
 
                         let line = line.trim_matches('\n').trim_matches('\r').to_string();
 
